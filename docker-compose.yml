@@ -1,0 +1,29 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: quizhub-backend
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-change-me}
+      DATABASE_URL: sqlite:///data/quizhub.db
+      CORS_ORIGINS: '["http://localhost:8080","http://127.0.0.1:8080"]'
+    volumes:
+      - backend_data:/data
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ""
+    container_name: quizhub-frontend
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+volumes:
+  backend_data:
