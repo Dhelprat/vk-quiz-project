@@ -263,7 +263,13 @@ function percent(value) {
 
 function formatMs(value) {
   if (value == null) return '—'
-  if (value < 1000) return `${Math.round(value)} миллисек.`
+  if (value < 1000) return `${Math.round(value)} мс`
+  return `${(value / 1000).toFixed(1)} с`
+}
+
+function formatMsValue(value) {
+  if (value == null) return '—'
+  if (value < 1000) return String(Math.round(value))
   return `${(value / 1000).toFixed(1)} с`
 }
 
@@ -283,7 +289,7 @@ const analyticsKpis = computed(() => {
     { label: 'Участников', value: analytics.value.total_participants, hint: 'подключились к комнате' },
     { label: 'Средняя точность', value: `${analytics.value.avg_accuracy_percent}%`, hint: 'по всем участникам' },
     { label: 'Завершенность', value: `${completionRate}%`, hint: 'ответов от возможных' },
-    { label: 'Средний темп', value: formatMs(avgResponseTime), hint: 'по отвеченным вопросам' },
+    { label: 'Средний темп (мс)', value: formatMsValue(avgResponseTime), hint: 'по отвеченным вопросам' },
   ]
 })
 
