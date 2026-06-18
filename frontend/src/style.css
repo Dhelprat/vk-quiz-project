@@ -1404,6 +1404,7 @@ input[type='radio'] {
   grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.75fr);
   gap: var(--space-8);
   align-items: start;
+  min-width: 0;
 }
 
 .live-main {
@@ -1411,6 +1412,8 @@ input[type='radio'] {
   padding: 0;
   background: transparent;
   box-shadow: none;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .live-page .card {
@@ -1970,7 +1973,11 @@ input[type='radio'] {
 }
 
 .table-wrap {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
+  overscroll-behavior-inline: contain;
 }
 
 .stat-table {
