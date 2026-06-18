@@ -164,6 +164,50 @@ export function updateQuiz(ownerId, quizId, payload) {
   return { status: 200, data: serializeQuiz(getQuizRow(quizId)) }
 }
 
+export function duplicateQuiz(ownerId, quizId) {
+  const source = getQuizRow(quizId)
+  if (!source) return { status: 404, detail: 'Квиз не найден' }
+  if (source.owner_id !== ownerId) return { status: 403, detail: 'Нет доступа' }
+
+  const sourceQuestions = getQuizDetails(quizId).questions
+  const created = createQuiz(ownerId, {
+    title: `${source.title} — копия`.slice(0, 200),
+    description: source.description,
+    category: source.category,
+    default_time_limit: source.default_time_limit,
+    rules: source.rules,
+    settings: mergeSettings(source.settings),
+  })
+  replaceQuestions(ownerId, created.id, {
+    questions: sourceQuestions.map((question) => ({
+      text: question.text,
+      image_url: question.image_url,
+      question_type: question.question_type,
+      points: question.points,
+      time_limit: question.time_limit,
+      options: question.options.map((option) => ({
+        text: option.text,
+        is_correct: option.is_correct,
+      })),
+    })),
+  })
+  return { status: 201, data: getQuizDetails(created.id) }
+}
+
+export function deleteQuiz(ownerId, quizId) {
+  const quiz = getQuizRow(quizId)
+  if (!quiz) return { status: 404, detail: 'Квиз не найден' }
+  if (quiz.owner_id !== ownerId) return { status: 403, detail: 'Нет доступа' }
+
+  const activeLaunch = db
+    .prepare("SELECT id FROM quiz_launches WHERE quiz_id = ? AND status IN ('waiting', 'active') LIMIT 1")
+    .get(quizId)
+  if (activeLaunch) return { status: 409, detail: 'Нельзя удалить квиз с активной комнатой' }
+
+  db.prepare('DELETE FROM quizzes WHERE id = ?').run(quizId)
+  return { status: 204 }
+}
+
 function validateQuestions(questions) {
   if (!Array.isArray(questions) || questions.length < 1) throw new Error('Добавьте хотя бы один вопрос')
   if (questions.length > 50) throw new Error('В MVP можно добавить не более 50 вопросов')
@@ -445,6 +489,12 @@ export function getLaunchState(roomCode) {
     answer_progress: getAnswerProgress(launch),
     settings: getLaunchSettings(launch),
   }
+}
+
+export function getVisibleLeaderboard(launch, role) {
+  if (role === 'organizer' || launch.status === 'finished') return getLeaderboard(launch.id)
+  const settings = getLaunchSettings(launch)
+  return settings.show_leaderboard_after_each_question ? getLeaderboard(launch.id) : []
 }
 
 export function getQuestionById(questionId) {

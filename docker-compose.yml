@@ -4,13 +4,15 @@ services:
       context: ./backend
     container_name: quizhub-backend
     environment:
-      SECRET_KEY: ${SECRET_KEY:-dev-secret-change-me}
+      SECRET_KEY: ${SECRET_KEY:-quizhub-local-docker-secret-change-before-public-deployment-2026}
       DATABASE_URL: sqlite:///data/quizhub.db
+      UPLOAD_DIR: /data/uploads
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
       CORS_ORIGINS: '["http://localhost:8080","http://127.0.0.1:8080"]'
     volumes:
       - backend_data:/data
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
     restart: unless-stopped
 
   frontend:

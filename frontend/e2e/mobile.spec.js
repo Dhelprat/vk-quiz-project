@@ -114,7 +114,7 @@ test('complete quiz flow is responsive on a phone', async ({ browser }) => {
 
   await organizerPage.getByRole('link', { name: 'Создать квиз' }).click()
   await organizerPage.getByLabel('Название').fill('Mobile QA quiz')
-  await organizerPage.getByLabel('Категория').fill('Mobile QA')
+  await organizerPage.getByLabel('Категория').selectOption('Образование')
   await organizerPage.getByLabel('Описание').fill('Проверка адаптивности полного сценария')
   await organizerPage.getByLabel('Правила').fill('Ответить во время показа вопроса')
 

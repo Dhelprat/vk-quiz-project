@@ -12,7 +12,7 @@ const router = useRouter()
 const quizMeta = reactive({
   title: '',
   description: '',
-  category: 'General',
+  category: 'Образование',
   default_time_limit: 20,
   rules: '',
   settings: {
@@ -33,12 +33,27 @@ const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
 const notice = ref('')
+const categories = [
+  'Образование',
+  'Программирование',
+  'Наука',
+  'История',
+  'Культура и искусство',
+  'Спорт',
+  'Музыка и кино',
+  'Корпоративное мероприятие',
+  'Развлечения',
+]
 
 const resolvedQuizId = computed(() => {
   const raw = route.params.quizId
   if (!raw) return null
   const parsed = Number(raw)
   return Number.isFinite(parsed) ? parsed : null
+})
+const categoryOptions = computed(() => {
+  if (!quizMeta.category || categories.includes(quizMeta.category)) return categories
+  return [quizMeta.category, ...categories]
 })
 
 const isEdit = computed(() => Boolean(resolvedQuizId.value))
@@ -53,8 +68,28 @@ function createQuestion() {
     image_url: '',
     question_type: 'single',
     points: 100,
-    time_limit: 20,
+    time_limit: Number(quizMeta.default_time_limit) || 20,
+    uploading_image: false,
     options: [createOption(), createOption()],
+  }
+}
+
+async function uploadQuestionImage(question, event) {
+  const [file] = event.target.files || []
+  event.target.value = ''
+  if (!file) return
+
+  question.uploading_image = true
+  error.value = ''
+  try {
+    const formData = new FormData()
+    formData.append('image', file)
+    const uploaded = await api.upload('/api/uploads/question-image', formData)
+    question.image_url = uploaded.url
+  } catch (err) {
+    error.value = err.message || 'Не удалось загрузить изображение'
+  } finally {
+    question.uploading_image = false
   }
 }
 
@@ -160,6 +195,7 @@ async function loadQuiz(quizId) {
         text: option.text,
         is_correct: option.is_correct,
       })),
+      uploading_image: false,
     }))
   } catch (err) {
     error.value = err.message || 'Не удалось загрузить квиз'
@@ -272,7 +308,12 @@ onMounted(() => {
 
           <label>
             Категория
-            <input v-model="quizMeta.category" type="text" />
+            <select v-model="quizMeta.category">
+              <option value="">Выберите категорию</option>
+              <option v-for="category in categoryOptions" :key="category" :value="category">
+                {{ category }}
+              </option>
+            </select>
           </label>
 
           <label>
@@ -377,9 +418,25 @@ onMounted(() => {
             </label>
 
             <label>
-              URL изображения (необязательно)
+              URL изображения
               <input v-model="question.image_url" type="url" />
             </label>
+
+            <div class="image-upload-field">
+              <span>Или загрузите изображение</span>
+              <label class="btn ghost upload-button">
+                {{ question.uploading_image ? 'Загрузка...' : 'Выбрать PNG, JPEG или WebP' }}
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  :disabled="question.uploading_image"
+                  @change="uploadQuestionImage(question, $event)"
+                />
+              </label>
+              <button v-if="question.image_url" class="btn ghost" type="button" @click="question.image_url = ''">
+                Убрать изображение
+              </button>
+            </div>
 
             <label>
               Тип ответа
@@ -399,6 +456,13 @@ onMounted(() => {
               <input v-model.number="question.time_limit" type="number" min="5" max="180" />
             </label>
           </div>
+
+          <img
+            v-if="question.image_url"
+            :src="question.image_url"
+            alt="Предпросмотр изображения вопроса"
+            class="question-image image-preview"
+          />
 
           <div class="options-list">
             <h3>Варианты ответа</h3>

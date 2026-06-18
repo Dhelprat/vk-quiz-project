@@ -40,15 +40,53 @@ export function getUserFromToken(token) {
   }
 }
 
-export function requireAuth(req, res, next) {
+function parseCookies(header = '') {
+  return Object.fromEntries(
+    String(header)
+      .split(';')
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => {
+        const separator = part.indexOf('=')
+        if (separator < 0) return [part, '']
+        return [part.slice(0, separator), decodeURIComponent(part.slice(separator + 1))]
+      }),
+  )
+}
+
+export function getRequestToken(req) {
   const auth = req.headers.authorization || ''
-  const token = auth.startsWith('Bearer ') ? auth.slice(7) : ''
+  if (auth.startsWith('Bearer ')) return auth.slice(7)
+  return parseCookies(req.headers.cookie)[config.cookieName] || ''
+}
+
+export function requireAuth(req, res, next) {
+  const token = getRequestToken(req)
   const user = getUserFromToken(token)
   if (!user) {
     return res.status(401).json({ detail: 'Требуется авторизация' })
   }
   req.user = user
   return next()
+}
+
+export function setSessionCookie(res, token) {
+  res.cookie(config.cookieName, token, {
+    httpOnly: true,
+    secure: config.cookieSecure,
+    sameSite: 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    path: '/',
+  })
+}
+
+export function clearSessionCookie(res) {
+  res.clearCookie(config.cookieName, {
+    httpOnly: true,
+    secure: config.cookieSecure,
+    sameSite: 'lax',
+    path: '/',
+  })
 }
 
 export function requireOrganizer(req, res, next) {

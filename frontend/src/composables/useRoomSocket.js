@@ -11,10 +11,11 @@ export function useRoomSocket({ apiBase, roomCode, token, onMessage }) {
   const isConnected = ref(false)
 
   function connect() {
-    if (!roomCode || !token) return
+    if (!roomCode) return
     const socketClient = io(toSocketBase(apiBase), {
       auth: { roomCode, token },
       transports: ['websocket', 'polling'],
+      withCredentials: true,
     })
 
     socketClient.on('connect', () => {

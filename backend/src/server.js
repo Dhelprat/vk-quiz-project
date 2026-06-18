@@ -3,13 +3,29 @@ import express from 'express'
 import helmet from 'helmet'
 import http from 'node:http'
 import morgan from 'morgan'
+import crypto from 'node:crypto'
+import fs from 'node:fs'
+import path from 'node:path'
+import multer from 'multer'
+import { rateLimit } from 'express-rate-limit'
 
-import { createToken, hashPassword, requireAuth, requireOrganizer, serializeUser, verifyPassword } from './auth.js'
+import {
+  clearSessionCookie,
+  createToken,
+  hashPassword,
+  requireAuth,
+  requireOrganizer,
+  serializeUser,
+  setSessionCookie,
+  verifyPassword,
+} from './auth.js'
 import { config } from './config.js'
 import { db, migrate, nowIso } from './db.js'
 import {
   createLaunch,
   createQuiz,
+  deleteQuiz,
+  duplicateQuiz,
   getHistory,
   getLaunchAnalytics,
   getLaunchByRoom,
@@ -40,13 +56,30 @@ function sessionPayload(user) {
   }
 }
 
+function createSession(res, user) {
+  const payload = sessionPayload(user)
+  setSessionCookie(res, payload.access_token)
+  return payload
+}
+
 migrate()
 
 const app = express()
 const server = http.createServer(app)
 setupRealtime(server)
+app.set('trust proxy', 1)
 
-app.use(helmet({ contentSecurityPolicy: false }))
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      connectSrc: ["'self'", 'ws:', 'wss:', 'http:', 'https:'],
+      imgSrc: ["'self'", 'data:', 'blob:', 'https:', 'http:'],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+    },
+  },
+}))
 app.use(express.json({ limit: '2mb' }))
 app.use(morgan('dev'))
 app.use(cors({
@@ -56,12 +89,35 @@ app.use(cors({
   },
   credentials: true,
 }))
+app.use('/uploads', express.static(config.uploadsDir, {
+  fallthrough: false,
+  immutable: true,
+  maxAge: '30d',
+}))
+
+const authLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { detail: 'Слишком много попыток. Повторите позже.' },
+})
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+  fileFilter(req, file, callback) {
+    const allowed = new Set(['image/jpeg', 'image/png', 'image/webp'])
+    if (!allowed.has(file.mimetype)) return callback(new Error('Допустимы только PNG, JPEG и WebP'))
+    return callback(null, true)
+  },
+})
 
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, app: config.appName, database: 'sqlite' })
 })
 
-app.post('/api/auth/register', asyncHandler(async (req, res) => {
+app.post('/api/auth/register', authLimiter, asyncHandler(async (req, res) => {
   const fullName = String(req.body.full_name || '').trim()
   const email = normalizeEmail(req.body.email)
   const password = String(req.body.password || '')
@@ -80,18 +136,23 @@ app.post('/api/auth/register', asyncHandler(async (req, res) => {
   `).run(fullName, email, hashPassword(password), role, nowIso())
 
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid)
-  return res.status(201).json(sessionPayload(user))
+  return res.status(201).json(createSession(res, user))
 }))
 
-app.post('/api/auth/login', asyncHandler(async (req, res) => {
+app.post('/api/auth/login', authLimiter, asyncHandler(async (req, res) => {
   const email = normalizeEmail(req.body.email)
   const password = String(req.body.password || '')
   const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email)
   if (!user || !verifyPassword(password, user.password_hash)) {
     return res.status(401).json({ detail: 'Неверный email или пароль' })
   }
-  return res.json(sessionPayload(user))
+  return res.json(createSession(res, user))
 }))
+
+app.post('/api/auth/logout', (req, res) => {
+  clearSessionCookie(res)
+  return res.status(204).end()
+})
 
 app.get('/api/auth/me', requireAuth, (req, res) => {
   res.json(serializeUser(req.user))
@@ -129,6 +190,30 @@ app.post('/api/quizzes/:quizId/questions', requireAuth, requireOrganizer, asyncH
   return res.json(result.data)
 }))
 
+app.post('/api/quizzes/:quizId/duplicate', requireAuth, requireOrganizer, (req, res) => {
+  const result = duplicateQuiz(req.user.id, Number(req.params.quizId))
+  if (result.status >= 400) return res.status(result.status).json({ detail: result.detail })
+  return res.status(result.status).json(result.data)
+})
+
+app.delete('/api/quizzes/:quizId', requireAuth, requireOrganizer, (req, res) => {
+  const result = deleteQuiz(req.user.id, Number(req.params.quizId))
+  if (result.status >= 400) return res.status(result.status).json({ detail: result.detail })
+  return res.status(204).end()
+})
+
+app.post('/api/uploads/question-image', requireAuth, requireOrganizer, upload.single('image'), asyncHandler(async (req, res) => {
+  if (!req.file) return res.status(400).json({ detail: 'Выберите изображение' })
+  const extensions = {
+    'image/jpeg': '.jpg',
+    'image/png': '.png',
+    'image/webp': '.webp',
+  }
+  const filename = `${crypto.randomUUID()}${extensions[req.file.mimetype]}`
+  await fs.promises.writeFile(path.join(config.uploadsDir, filename), req.file.buffer, { flag: 'wx' })
+  return res.status(201).json({ url: `/uploads/${filename}` })
+}))
+
 app.post('/api/sessions', requireAuth, requireOrganizer, (req, res) => {
   const result = createLaunch(req.user.id, Number(req.body.quiz_id))
   if (result.status >= 400) return res.status(result.status).json({ detail: result.detail })
@@ -154,6 +239,9 @@ app.get('/api/sessions/:roomCode', requireAuth, (req, res) => {
     if (!participant) return res.status(403).json({ detail: 'Сначала присоединитесь к комнате' })
   }
   const state = getLaunchState(req.params.roomCode)
+  if (req.user.role === 'participant' && launch.status !== 'finished' && !state.settings.show_leaderboard_after_each_question) {
+    state.leaderboard = []
+  }
   return res.json(state)
 })
 

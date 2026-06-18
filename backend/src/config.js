@@ -20,6 +20,10 @@ function parseSqlitePath(value) {
 
 const databaseFile = parseSqlitePath(process.env.DATABASE_URL || process.env.DATABASE_FILE)
 fs.mkdirSync(path.dirname(databaseFile), { recursive: true })
+const uploadsDir = process.env.UPLOAD_DIR
+  ? path.resolve(process.env.UPLOAD_DIR)
+  : path.join(path.dirname(databaseFile), 'uploads')
+fs.mkdirSync(uploadsDir, { recursive: true })
 
 function parseCorsOrigins(value) {
   if (!value) {
@@ -43,4 +47,11 @@ export const config = {
   jwtSecret: process.env.SECRET_KEY || process.env.JWT_SECRET || 'dev-secret-change-me',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   corsOrigins: parseCorsOrigins(process.env.CORS_ORIGINS),
+  uploadsDir,
+  cookieName: process.env.AUTH_COOKIE_NAME || 'quizhub_session',
+  cookieSecure: process.env.COOKIE_SECURE === 'true',
+}
+
+if (process.env.NODE_ENV === 'production' && config.jwtSecret.length < 32) {
+  throw new Error('SECRET_KEY must contain at least 32 characters in production')
 }

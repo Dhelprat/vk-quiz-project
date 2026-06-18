@@ -320,7 +320,10 @@ onUnmounted(() => {
         <div v-else-if="!countdown && status !== 'waiting'" class="card muted">Ожидание следующего вопроса от организатора.</div>
       </div>
 
-      <aside class="card live-aside">
+      <aside
+        v-if="status === 'finished' || settings?.show_leaderboard_after_each_question"
+        class="card live-aside"
+      >
         <p class="eyebrow">Prize places</p>
         <h2>Лидерборд</h2>
         <div v-if="leaderboard.length === 0" class="muted">Рейтинг пока пуст.</div>

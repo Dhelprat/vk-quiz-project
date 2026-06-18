@@ -51,6 +51,37 @@ async function launchQuiz(quizId) {
   }
 }
 
+async function duplicateQuiz(quizId) {
+  error.value = ''
+  try {
+    await api.request(`/api/quizzes/${quizId}/duplicate`, {
+      method: 'POST',
+      headers: api.authHeader(auth.token),
+    })
+    await loadData()
+  } catch (err) {
+    error.value = err.message || 'Не удалось дублировать квиз'
+  }
+}
+
+async function deleteQuiz(quiz) {
+  const confirmed = window.confirm(
+    `Удалить квиз «${quiz.title}»? Вместе с ним будет удалена история завершенных запусков этого квиза.`,
+  )
+  if (!confirmed) return
+
+  error.value = ''
+  try {
+    await api.request(`/api/quizzes/${quiz.id}`, {
+      method: 'DELETE',
+      headers: api.authHeader(auth.token),
+    })
+    await loadData()
+  } catch (err) {
+    error.value = err.message || 'Не удалось удалить квиз'
+  }
+}
+
 function statusLabel(status) {
   if (status === 'waiting') return 'Ожидание'
   if (status === 'active') return 'Активен'
@@ -136,6 +167,8 @@ onMounted(loadData)
             </div>
             <div class="quiz-row-actions">
               <RouterLink class="btn ghost" :to="`/quiz-builder/${quiz.id}`">Редактировать</RouterLink>
+              <button class="btn ghost" @click="duplicateQuiz(quiz.id)">Дублировать</button>
+              <button class="btn danger" @click="deleteQuiz(quiz)">Удалить</button>
               <button class="btn primary" @click="launchQuiz(quiz.id)">Запустить</button>
             </div>
           </div>

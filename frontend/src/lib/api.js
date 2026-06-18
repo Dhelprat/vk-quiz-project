@@ -9,6 +9,7 @@ async function request(path, options = {}) {
 
   const response = await fetch(url, {
     ...options,
+    credentials: 'include',
     headers,
     body: options.body ? JSON.stringify(options.body) : undefined,
   })
@@ -24,6 +25,17 @@ async function request(path, options = {}) {
   return payload
 }
 
+async function upload(path, formData) {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    credentials: 'include',
+    body: formData,
+  })
+  const payload = await response.json()
+  if (!response.ok) throw new Error(payload.detail || 'Не удалось загрузить файл')
+  return payload
+}
+
 function authHeader(token) {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
@@ -31,5 +43,6 @@ function authHeader(token) {
 export const api = {
   base: API_BASE,
   request,
+  upload,
   authHeader,
 }

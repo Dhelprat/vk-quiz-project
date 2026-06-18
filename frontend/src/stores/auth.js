@@ -3,28 +3,23 @@ import { computed, ref } from 'vue'
 
 import { api } from '../lib/api'
 
-const TOKEN_KEY = 'quizhub_token'
-const USER_KEY = 'quizhub_user'
-
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref(localStorage.getItem(TOKEN_KEY) || '')
-  const user = ref(localStorage.getItem(USER_KEY) ? JSON.parse(localStorage.getItem(USER_KEY)) : null)
+  const token = ref('')
+  const user = ref(null)
+  const initialized = ref(false)
 
-  const isAuthenticated = computed(() => Boolean(token.value))
+  const isAuthenticated = computed(() => Boolean(user.value))
   const isOrganizer = computed(() => user.value?.role === 'organizer')
 
   function setSession(payload) {
-    token.value = payload.access_token
     user.value = payload.user
-    localStorage.setItem(TOKEN_KEY, token.value)
-    localStorage.setItem(USER_KEY, JSON.stringify(user.value))
   }
 
   function clearSession() {
     token.value = ''
     user.value = null
-    localStorage.removeItem(TOKEN_KEY)
-    localStorage.removeItem(USER_KEY)
+    localStorage.removeItem('quizhub_token')
+    localStorage.removeItem('quizhub_user')
   }
 
   async function register(form) {
@@ -44,17 +39,28 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function loadProfile() {
-    if (!token.value) return
     try {
       const profile = await api.request('/api/auth/me', {
         headers: api.authHeader(token.value),
       })
       user.value = profile
-      localStorage.setItem(USER_KEY, JSON.stringify(user.value))
     } catch (error) {
       clearSession()
       throw error
     }
+  }
+
+  async function initialize() {
+    if (initialized.value) return
+    initialized.value = true
+    localStorage.removeItem('quizhub_token')
+    localStorage.removeItem('quizhub_user')
+    await loadProfile().catch(() => {})
+  }
+
+  async function logout() {
+    await api.request('/api/auth/logout', { method: 'POST' }).catch(() => {})
+    clearSession()
   }
 
   return {
@@ -62,10 +68,13 @@ export const useAuthStore = defineStore('auth', () => {
     user,
     isAuthenticated,
     isOrganizer,
+    initialized,
     setSession,
     clearSession,
     register,
     login,
     loadProfile,
+    initialize,
+    logout,
   }
 })

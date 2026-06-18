@@ -168,7 +168,21 @@ await expectStatus('/api/auth/register', 409, {
 })
 const me = await ok('/api/auth/me', { headers: auth(organizer.access_token) })
 assert(me.email === `qa-organizer-${suffix}@example.com`, 'Profile endpoint returned wrong user')
-mark('registration, login session and duplicate email protection')
+const { response: cookieLoginResponse } = await request('/api/auth/login', {
+  method: 'POST',
+  body: {
+    email: `qa-organizer-${suffix}@example.com`,
+    password: 'password',
+  },
+})
+const sessionCookie = cookieLoginResponse.headers.get('set-cookie')
+assert(sessionCookie?.includes('quizhub_session='), 'Login did not set the session cookie')
+assert(sessionCookie?.toLowerCase().includes('httponly'), 'Session cookie is not HttpOnly')
+const cookieProfile = await ok('/api/auth/me', {
+  headers: { Cookie: sessionCookie.split(';')[0] },
+})
+assert(cookieProfile.id === organizer.user.id, 'Cookie session returned wrong user')
+mark('registration, bearer/cookie login session and duplicate email protection')
 
 await expectStatus('/api/quizzes', 403, {
   method: 'POST',
@@ -259,7 +273,28 @@ await expectStatus(`/api/quizzes/${quiz.id}`, 403, {
   headers: auth(otherOrganizer.access_token),
   body: { title: 'Attempted takeover' },
 })
-mark('quiz builder validation and quiz ownership protection')
+await expectStatus(`/api/quizzes/${quiz.id}/duplicate`, 403, {
+  method: 'POST',
+  headers: auth(otherOrganizer.access_token),
+})
+await expectStatus(`/api/quizzes/${quiz.id}`, 403, {
+  method: 'DELETE',
+  headers: auth(otherOrganizer.access_token),
+})
+const duplicatedQuiz = await ok(`/api/quizzes/${quiz.id}/duplicate`, {
+  method: 'POST',
+  headers: auth(organizer.access_token),
+})
+assert(duplicatedQuiz.title.endsWith('— копия'), 'Duplicated quiz title is wrong')
+assert(duplicatedQuiz.questions.length === savedQuiz.questions.length, 'Duplicated quiz lost questions')
+await expectStatus(`/api/quizzes/${duplicatedQuiz.id}`, 204, {
+  method: 'DELETE',
+  headers: auth(organizer.access_token),
+})
+await expectStatus(`/api/quizzes/${duplicatedQuiz.id}`, 404, {
+  headers: auth(organizer.access_token),
+})
+mark('quiz validation, ownership, duplication and deletion')
 
 const launch = await ok('/api/sessions', {
   method: 'POST',
@@ -518,7 +553,8 @@ const { response: corsResponse } = await request('/api/health', {
   headers: { Origin: 'https://evil.example' },
 })
 assert(!corsResponse.headers.get('access-control-allow-origin'), 'Unknown origin received CORS access')
-mark('CORS restriction')
+assert(corsResponse.headers.get('content-security-policy')?.includes("default-src 'self'"), 'CSP header is missing')
+mark('CORS and Content Security Policy restrictions')
 
 console.log(JSON.stringify({
   ok: true,

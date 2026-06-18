@@ -13,6 +13,7 @@ import {
   getLaunchSettings,
   getLaunchState,
   getLeaderboard,
+  getVisibleLeaderboard,
   getParticipantForUser,
   getParticipants,
   getPublicQuestion,
@@ -243,7 +244,13 @@ export function setupRealtime(httpServer) {
   })
 
   io.use((socket, next) => {
-    const token = socket.handshake.auth?.token
+    const cookieHeader = socket.handshake.headers.cookie || ''
+    const cookieToken = cookieHeader
+      .split(';')
+      .map((part) => part.trim())
+      .find((part) => part.startsWith(`${config.cookieName}=`))
+      ?.slice(config.cookieName.length + 1)
+    const token = socket.handshake.auth?.token || (cookieToken ? decodeURIComponent(cookieToken) : '')
     const roomCode = String(socket.handshake.auth?.roomCode || '').toUpperCase()
     const user = getUserFromToken(token)
     if (!user || !roomCode) return next(new Error('Требуется авторизация'))
@@ -280,7 +287,7 @@ export function setupRealtime(httpServer) {
       status: state.status,
       current_question_index: state.current_question_index,
       question_total: state.question_total,
-      leaderboard: state.leaderboard,
+      leaderboard: getVisibleLeaderboard(launch, user.role),
       participants: state.participants,
       answer_progress: state.answer_progress,
       settings: state.settings,

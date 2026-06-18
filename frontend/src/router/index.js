@@ -28,10 +28,7 @@ const router = createRouter({
 
 router.beforeEach(async (to) => {
   const auth = useAuthStore()
-
-  if (auth.token && !auth.user) {
-    await auth.loadProfile().catch(() => {})
-  }
+  await auth.initialize()
 
   if (to.meta.auth && !auth.isAuthenticated) {
     return { name: 'login', query: { next: to.fullPath } }

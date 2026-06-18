@@ -1392,6 +1392,37 @@ input[type='radio'] {
   background: rgba(255, 255, 255, 0.76);
 }
 
+.image-upload-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.image-upload-field > span {
+  width: 100%;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.upload-button {
+  cursor: pointer;
+}
+
+.upload-button input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.image-preview {
+  margin-top: var(--space-4);
+}
+
 .live-page {
   min-height: 100vh;
   background:

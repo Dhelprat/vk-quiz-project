@@ -31,12 +31,13 @@ test('organizer creates and hosts a live quiz, participant joins and answers', a
     email: `e2e-organizer-${suffix}@example.com`,
     role: 'organizer',
   })
+  await expect.poll(() => organizerPage.evaluate(() => localStorage.getItem('quizhub_token'))).toBeNull()
 
   await organizerPage.getByRole('link', { name: 'Создать квиз' }).click()
   await expect(organizerPage.getByRole('heading', { name: 'Создание квиза' })).toBeVisible()
 
   await organizerPage.getByLabel('Название').fill('E2E live quiz')
-  await organizerPage.getByLabel('Категория').fill('QA')
+  await organizerPage.getByLabel('Категория').selectOption('Программирование')
   await organizerPage.getByLabel('Описание').fill('Проверка полного пользовательского сценария')
   await organizerPage.getByLabel('Правила').fill('Ответить до окончания таймера')
 
@@ -45,6 +46,15 @@ test('organizer creates and hosts a live quiz, participant joins and answers', a
   await firstQuestion.getByPlaceholder('Вариант ответа').nth(0).fill('Socket.IO')
   await firstQuestion.getByPlaceholder('Вариант ответа').nth(1).fill('Email')
   await firstQuestion.locator('input[type="radio"]').nth(0).check()
+  await firstQuestion.locator('input[type="file"]').setInputFiles({
+    name: 'question.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nL8AAAAASUVORK5CYII=',
+      'base64',
+    ),
+  })
+  await expect(firstQuestion.getByAltText('Предпросмотр изображения вопроса')).toHaveAttribute('src', /\/uploads\/.+\.png$/)
 
   await organizerPage.getByRole('button', { name: '+ Добавить вопрос' }).click()
   const secondQuestion = organizerPage.locator('.question-card').nth(1)

@@ -6,6 +6,8 @@ const galleryDir = path.resolve(process.cwd(), '../docs/design-gallery')
 
 async function screenshot(page, name) {
   await fs.mkdir(galleryDir, { recursive: true })
+  await page.waitForLoadState('networkidle')
+  await page.waitForTimeout(350)
   await page.evaluate(() => window.scrollTo(0, 0))
   await page.screenshot({ path: path.join(galleryDir, name), fullPage: true })
 }
@@ -23,7 +25,7 @@ async function register(page, { fullName, email, role }) {
 async function createDemoQuiz(page) {
   await page.goto('/quiz-builder/new')
   await page.getByLabel('Название').fill('Демо-квиз для защиты')
-  await page.getByLabel('Категория').fill('VK Education')
+  await page.getByLabel('Категория').selectOption('Образование')
   await page.getByLabel('Описание').fill('Проверка дизайна и полного сценария')
   await page.getByLabel('Правила').fill('Отвечайте во время показа вопроса')
 

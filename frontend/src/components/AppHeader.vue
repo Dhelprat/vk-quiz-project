@@ -10,9 +10,9 @@ const auth = useAuthStore()
 
 const isLiveRoute = computed(() => route.name === 'live-host' || route.name === 'live-play')
 
-function logout() {
-  auth.clearSession()
-  router.push({ name: 'home' })
+async function logout() {
+  await auth.logout()
+  await router.push({ name: 'home' })
 }
 </script>
 
